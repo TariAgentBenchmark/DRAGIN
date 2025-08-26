@@ -1,0 +1,148 @@
+name: Release Docker Images
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  REGISTRY: crpi-lxfoqbwevmx9mc1q.cn-chengdu.personal.cr.aliyuncs.com
+  NAMESPACE: tari_tech
+  IMAGE_NAME: dragin
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        variant:
+          - name: "cuda"
+            dockerfile: "Dockerfile"
+            suffix: ""
+            platforms: "linux/amd64"
+          - name: "cpu"
+            dockerfile: "Dockerfile.cpu"
+            suffix: "-cpu"
+            platforms: "linux/amd64,linux/arm64"
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Create CPU Dockerfile
+      if: matrix.variant.name == 'cpu'
+      run: |
+        # Create CPU-only version of Dockerfile
+        sed 's|FROM nvidia/cuda:11.8-devel-ubuntu20.04|FROM python:3.9-slim|g' Dockerfile > Dockerfile.cpu
+        sed -i 's|torch==2.1.1+cu118 torchvision==0.16.1+cu118 torchaudio==2.1.1+cu118 --index-url https://download.pytorch.org/whl/cu118|torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1|g' Dockerfile.cpu
+        # Remove CUDA-specific installations
+        sed -i '/software-properties-common/,/rm -rf \/var\/lib\/apt\/lists\/\*/d' Dockerfile.cpu
+        # Add back basic system dependencies
+        sed -i '/ENV DEBIAN_FRONTEND=noninteractive/a\\n# Install system dependencies\nRUN apt-get update && apt-get install -y \\\n    wget \\\n    curl \\\n    unzip \\\n    gzip \\\n    tar \\\n    git \\\n    build-essential \\\n    && rm -rf /var/lib/apt/lists/*' Dockerfile.cpu
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Alibaba Cloud Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.ALIYUN_CR_USERNAME }}
+        password: ${{ secrets.ALIYUN_CR_PASSWORD }}
+
+    - name: Extract version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}
+        tags: |
+          type=raw,value=${{ steps.version.outputs.version }}
+          type=raw,value=latest,enable=${{ matrix.variant.name == 'cuda' }}
+          type=raw,value=latest${{ matrix.variant.suffix }},enable=${{ matrix.variant.name == 'cpu' }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ${{ matrix.variant.dockerfile }}
+        platforms: ${{ matrix.variant.platforms }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha,scope=${{ matrix.variant.name }}
+        cache-to: type=gha,mode=max,scope=${{ matrix.variant.name }}
+
+    - name: Test image
+      run: |
+        docker run --rm ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:${{ steps.version.outputs.version }} python --version
+        docker run --rm ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}${{ matrix.variant.suffix }}:${{ steps.version.outputs.version }} python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
+
+  create-manifest:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Log in to Alibaba Cloud Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.ALIYUN_CR_USERNAME }}
+        password: ${{ secrets.ALIYUN_CR_PASSWORD }}
+
+    - name: Extract version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create release summary
+      run: |
+        echo "## 🐳 Docker Images Released" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Available Images" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Variant | Image | Platforms | CUDA Support |" >> $GITHUB_STEP_SUMMARY
+        echo "|---------|-------|-----------|--------------|" >> $GITHUB_STEP_SUMMARY
+        echo "| CUDA (Default) | \`${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\` | linux/amd64 | ✅ |" >> $GITHUB_STEP_SUMMARY
+        echo "| CPU Only | \`${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}-cpu:${{ steps.version.outputs.version }}\` | linux/amd64, linux/arm64 | ❌ |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Usage Examples" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "#### CUDA Version (GPU Support)" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "docker pull ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "docker run --gpus all -it ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "#### CPU Version (No GPU Required)" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "docker pull ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}-cpu:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "docker run -it ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}-cpu:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

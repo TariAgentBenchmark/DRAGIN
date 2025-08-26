@@ -1,5 +1,5 @@
 # Use CUDA-enabled Python 3.9 image as base
-FROM nvidia/cuda:11.8-devel-ubuntu20.04
+FROM nvidia/cuda:12.1-devel-ubuntu20.04
 
 # Install Python 3.9
 RUN apt-get update && apt-get install -y \
@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install CUDA-compatible PyTorch first (as specified in README)
-RUN pip install --no-cache-dir torch==2.1.1+cu118 torchvision==0.16.1+cu118 torchaudio==2.1.1+cu118 --index-url https://download.pytorch.org/whl/cu118
+RUN pip install --no-cache-dir torch==2.1.1+cu121 torchvision==0.16.1+cu121 torchaudio==2.1.1+cu121 --index-url https://download.pytorch.org/whl/cu121
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt

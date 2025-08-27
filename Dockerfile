@@ -33,6 +33,12 @@ RUN apt-get update && apt-get install -y \
     tar \
     git \
     build-essential \
+    cmake \
+    pkg-config \
+    libblas-dev \
+    liblapack-dev \
+    libopenblas-dev \
+    gfortran \
     && rm -rf /var/lib/apt/lists/*
 
 # Install additional tools for data processing
@@ -46,8 +52,13 @@ COPY requirements.txt .
 # Install CUDA-compatible PyTorch first (as specified in README)
 RUN pip install --no-cache-dir torch==2.1.1+cu121 torchvision==0.16.1+cu121 torchaudio==2.1.1+cu121 --index-url https://download.pytorch.org/whl/cu121
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install numpy and other basic dependencies first
+RUN pip install --no-cache-dir numpy scipy
+
+# Install requirements with fallback for problematic packages
+RUN pip install --no-cache-dir -r requirements.txt || \
+    (pip install --no-cache-dir --only-binary=pyarrow,faiss-cpu -r requirements.txt || \
+     pip install --no-cache-dir --no-binary=pyarrow,faiss-cpu -r requirements.txt)
 
 # Download and install spaCy English model
 RUN python -m spacy download en_core_web_sm

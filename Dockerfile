@@ -2,7 +2,8 @@
 FROM nvidia/cuda:12.1.1-devel-ubuntu20.04
 
 # Install Python 3.9
-RUN apt-get update && apt-get install -y \
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && apt-get update && apt-get install -y \
     software-properties-common \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update \
@@ -18,6 +19,7 @@ RUN apt-get update && apt-get install -y \
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 
 # Set working directory
 WORKDIR /app

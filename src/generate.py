@@ -528,6 +528,7 @@ class AttnWeightRAG(BasicRAG):
         curr_text = " ".join(curr_tokens)
         all_text = prev_text + " " + curr_text
         input_ids = self.generator.tokenizer.encode(all_text, return_tensors="pt")
+        input_ids = input_ids.to(self.generator.model.device)
         input_length = input_ids.shape[1]
         tokens_tmp = self.generator.tokenizer.convert_ids_to_tokens(input_ids[0])
 

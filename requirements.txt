@@ -7,3 +7,5 @@ evaluate==0.2.2
 spacy==3.7.2
 accelerate
 elasticsearch==7.17.9
+sentence-transformers==2.2.2
+huggingface_hub==0.23.*

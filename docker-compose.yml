@@ -37,6 +37,7 @@ services:
       - ELASTICSEARCH_PORT=9200
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - HF_ENDPOINT=https://hf-mirror.com
     deploy:
       resources:
         reservations:

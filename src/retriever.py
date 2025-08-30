@@ -14,6 +14,8 @@ from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.lexical import BM25Search
 from beir.retrieval.search.lexical.elastic_search import ElasticSearch
 
+ELASTICSEARCH_HOST = os.getenv('ELASTICSEARCH_HOST', 'localhost')
+
 logging.basicConfig(level=logging.INFO) 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ class BM25:
         if engine == 'elasticsearch':
             self.max_ret_topk = 1000
             self.retriever = EvaluateRetrieval(
-                BM25Search(index_name=index_name, hostname='localhost', initialize=False, number_of_shards=1),
+                BM25Search(index_name=index_name, hostname=ELASTICSEARCH_HOST, initialize=False, number_of_shards=1),
                 k_values=[self.max_ret_topk])
 
     def retrieve(

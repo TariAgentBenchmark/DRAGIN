@@ -112,7 +112,7 @@ The parameters that can be selected in the config file `config.json` are as foll
 
 | parameter                 | meaning                                                      | example/options                                              |
 | ------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `model_name_or_path`      | Hugging Face model.                                          | `meta-llama/Llama-2-13b-chat`                             |
+| `model_name_or_path`      | Hugging Face model.                                          | `meta-llama/Llama-2-13b-chat-hf`                             |
 | `method`                  | way to generate answers             | `non-retrieval`, `single-retrieval`, `token`, `fix-sentence-retrieval`, `fix-length-retrieval`, `dragin` |
 | `dataset`                 | Dataset                                                      | `2wikimultihopqa`, `hotpotqa`, `iirc`, `strategyqa`          |
 | `data_path`               | the folder where the data is located. If you use the above code to download the data, the folder will be `../data/dataset`. | `../data/2wikimultihopqa`                                    |
@@ -147,7 +147,7 @@ Here is the config file for using our approach to generate answers to the top 10
 
 ```json
 {
-    "model_name_or_path": "meta-llama/Llama-2-13b-chat",
+    "model_name_or_path": "meta-llama/Llama-2-13b-chat-hf",
     "method": "attn_entropy",
     "dataset": "2wikimultihopqa",
     "data_path": "../data/2wikimultihopqa",
